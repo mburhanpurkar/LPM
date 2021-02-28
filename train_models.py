@@ -1,3 +1,4 @@
+import os
 import sys
 import numpy as np
 import torch
@@ -8,11 +9,11 @@ from sklearn.metrics import confusion_matrix
 
 from utils import set_random_seed, get_minibatches_idx
 from models import ResNet18, VGG
-from data import save_train_data, save_test_data, load_data_from_pickle
+from data import save_data, load_data_from_pickle #save_train_data, save_test_data, load_data_from_pickle
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+# torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 
 def build_model(config):
@@ -49,11 +50,12 @@ def simple_train_batch(trainloader, model, loss_function, optimizer, config):
         for minibatch in minibatches_idx:
             inputs = torch.Tensor(np.array([list(trainloader[x][0].cpu().numpy()) for x in minibatch]))
             targets = torch.Tensor(np.array([list(trainloader[x][1].cpu().numpy()) for x in minibatch]))
-            inputs, targets = Variable(inputs.cuda()).squeeze(1), Variable(targets.long().cuda()).squeeze()
+            inputs, targets = Variable(inputs).squeeze(1), Variable(targets.long()).squeeze()
             optimizer.zero_grad()
             outputs = model(inputs).squeeze()
             loss = loss_function(outputs, targets)
             total_loss += loss
+            print(total_loss)
             loss.backward()
             optimizer.step()
         print('epoch:', epoch, 'loss:', total_loss)
@@ -70,7 +72,7 @@ def simple_test_batch(testloader, model, config):
     for minibatch in minibatches_idx:
         inputs = torch.Tensor(np.array([list(testloader[x][0].cpu().numpy()) for x in minibatch]))
         targets = torch.Tensor(np.array([list(testloader[x][1].cpu().numpy()) for x in minibatch]))
-        inputs, targets = Variable(inputs.cuda()).squeeze(1), Variable(targets.cuda()).squeeze()
+        inputs, targets = Variable(inputs).squeeze(1), Variable(targets).squeeze()
         outputs = model(inputs)
         _, predicted = torch.max(outputs, 1)
         total += targets.size(0)
@@ -94,11 +96,11 @@ def run_train_models():
     model_option = sys.argv[2].split('=')[1]
     t1 = int(sys.argv[3].split('=')[1])
     R = sys.argv[4].split('=')[1]
-    config = {'dir_path': '/path/to/working/dir', 'data': data_option, 'model': model_option,
+    config = {'dir_path': '/Users/mburhanpurkar/Documents/Harvard/LPM/experiments', 'data': data_option, 'model': model_option,
               't1': t1, 'R': R, 'simple_train_batch_size': 128, 'simple_test_batch_size': 100, 'epoch_num': 350,
               'lr': 0.1, 'momentum': 0.9, 'weight_decay': 5e-4, 'fixed': 'big'}
     # fixed: big/small
-    if data_option == 'fashion_mnist':
+    if data_option == 'fashion_mnist' or 'mnist':
         config['color_channel'] = 1
     else:
         config['color_channel'] = 3
@@ -113,18 +115,24 @@ def run_train_models():
         elif data_option == 'fashion_mnist':
             config['big_class_sample_size'] = 6000
             config['small_class_sample_size'] = 6000 // R
+        elif data_option == 'mnist':
+            config['big_class_sample_size'] = 5000
+            config['small_class_sample_size'] = 5000 // R
         else:
             print('wrong data option')
     model_path = config['dir_path'] + '/models/' + config['data'] + '_' + config['model'] + '_t1=' + \
                  str(config['t1']) + '_R=' + config['R'] + "_" + config['fixed'] + '.pt'
 
-    print('save test data')
+    print('save data')
     set_random_seed(666)
-    save_test_data(config)
+    save_data(config)
+    # print('save test data')
+    # set_random_seed(666)
+    # save_test_data(config)
 
-    print('save train data')
-    set_random_seed(666)
-    save_train_data(config)
+    # print('save train data')
+    # set_random_seed(666)
+    # save_train_data(config)
 
     set_random_seed(666)
     print('load data from pickle')
@@ -147,4 +155,6 @@ def run_train_models():
 
 
 if __name__ == '__main__':
+    if not os.path.isdir('experiments'):
+        os.mkdir('experiments')
     run_train_models()
